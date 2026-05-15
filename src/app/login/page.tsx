@@ -32,7 +32,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-lidar-600 rounded-2xl mb-4 shadow-lg">
             <span className="text-white text-2xl font-bold">L</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Grupo Lidar</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Grupo Luidar</h1>
           <p className="text-sm text-gray-500 mt-1">Sistema de Pós-Venda</p>
         </div>
 
