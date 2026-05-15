@@ -29,11 +29,11 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-5 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-lidar-600 rounded-xl flex items-center justify-center">
+          <div className="w-9 h-9 bg-luidar-600 rounded-xl flex items-center justify-center">
             <span className="text-white font-bold text-sm">L</span>
           </div>
           <div>
-            <p className="font-semibold text-gray-900 text-sm">Grupo Lidar</p>
+            <p className="font-semibold text-gray-900 text-sm">Grupo Luidar</p>
             <p className="text-xs text-gray-400">Pós-Venda</p>
           </div>
         </div>
