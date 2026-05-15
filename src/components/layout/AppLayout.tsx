@@ -19,7 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-lidar-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-luidar-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
