@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import { createClient } from '@/lib/supabase'
-import { Phone, CheckCircle, ChevronDown, ChevronUp, Star, User, Search } from 'lucide-react'
-import { format } from 'date-fns'
+import { Phone, CheckCircle, ChevronDown, ChevronUp, Star, User, Search, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { format, addMonths, subMonths, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 type Cliente = {
   id: string
@@ -42,22 +43,47 @@ export default function LigacoesPage() {
   const [salvando, setSalvando] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
-  const mes = format(new Date(), 'yyyy-MM')
+  const [mesesDisponiveis, setMesesDisponiveis] = useState<string[]>([])
+  const [mesSelecionado, setMesSelecionado] = useState(format(new Date(), 'yyyy-MM'))
 
   useEffect(() => {
-    async function load() {
+    async function loadLoja() {
       const supabase = createClient()
-      const [{ data: lojaData }, { data: clientesData }] = await Promise.all([
-        supabase.from('lojas').select('nome, cidade').eq('id', lojaId).single(),
-        supabase.from('clientes').select('*').eq('loja_id', lojaId).eq('mes_referencia', mes).order('nome'),
-      ])
-      setLoja(lojaData)
-      setClientes(clientesData || [])
-      setTotalAtendidos((clientesData || []).filter(c => c.status === 'atendido').length)
-      setLoading(false)
+      const { data } = await supabase.from('lojas').select('nome, cidade').eq('id', lojaId).single()
+      setLoja(data)
+
+      // Busca todos os meses com clientes desta loja
+      const { data: meses } = await supabase
+        .from('clientes')
+        .select('mes_referencia')
+        .eq('loja_id', lojaId)
+      
+      const mesesUnicos = [...new Set((meses || []).map(m => m.mes_referencia))].sort().reverse()
+      setMesesDisponiveis(mesesUnicos)
+      if (mesesUnicos.length > 0 && !mesesUnicos.includes(mesSelecionado)) {
+        setMesSelecionado(mesesUnicos[0])
+      }
     }
-    load()
-  }, [lojaId, mes])
+    loadLoja()
+  }, [lojaId])
+
+  useEffect(() => {
+    loadClientes()
+  }, [lojaId, mesSelecionado])
+
+  async function loadClientes() {
+    setLoading(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('loja_id', lojaId)
+      .eq('mes_referencia', mesSelecionado)
+      .order('nome')
+    setClientes(data || [])
+    setTotalAtendidos((data || []).filter(c => c.status === 'atendido').length)
+    setLoading(false)
+  }
 
   function updateAvaliacao(clienteId: string, field: keyof Avaliacao, value: string | number) {
     setAvaliacoes(prev => ({
@@ -74,10 +100,9 @@ export default function LigacoesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).single()
 
-    const mediaNotas = av.status_ligacao === 'atendida'
-      ? (av.nota_atendimento + av.nota_produto + av.nota_entrega) / 3
+    const mediaNotas = av.status_ligacao === 'atendida' && (av.nota_atendimento || av.nota_produto || av.nota_entrega)
+      ? Math.round((av.nota_atendimento + av.nota_produto + av.nota_entrega) / 3)
       : null
-
     const atencao = mediaNotas !== null && mediaNotas <= 2
 
     await supabase.from('atendimentos').insert({
@@ -86,7 +111,7 @@ export default function LigacoesPage() {
       colaborador_id: user?.id,
       colaborador_nome: profile?.nome || user?.email,
       status_ligacao: av.status_ligacao,
-      nota_satisfacao: mediaNotas ? Math.round(mediaNotas) : null,
+      nota_satisfacao: mediaNotas,
       nota_atendimento: av.nota_atendimento || null,
       nota_produto: av.nota_produto || null,
       nota_entrega: av.nota_entrega || null,
@@ -111,6 +136,18 @@ export default function LigacoesPage() {
   const pendentes = clientesFiltrados.filter(c => c.status === 'pendente' || c.status === 'retorno')
   const concluidos = clientesFiltrados.filter(c => c.status === 'atendido')
   const metaAtingida = totalAtendidos >= 5
+
+  function mesLabel(mes: string) {
+    try {
+      return format(parseISO(mes + '-01'), 'MMMM yyyy', { locale: ptBR })
+    } catch { return mes }
+  }
+
+  function navMes(direcao: 'prev' | 'next') {
+    const idx = mesesDisponiveis.indexOf(mesSelecionado)
+    if (direcao === 'next' && idx > 0) setMesSelecionado(mesesDisponiveis[idx - 1])
+    if (direcao === 'prev' && idx < mesesDisponiveis.length - 1) setMesSelecionado(mesesDisponiveis[idx + 1])
+  }
 
   return (
     <AppLayout>
@@ -143,9 +180,45 @@ export default function LigacoesPage() {
               style={{ width: `${Math.min((totalAtendidos / 5) * 100, 100)}%` }}
             />
           </div>
-          {!metaAtingida && (
+          {!metaAtingida && clientes.length > 0 && (
             <p className="text-xs text-gray-400 mt-1">Faltam {5 - totalAtendidos} atendimento{5 - totalAtendidos !== 1 ? 's' : ''} para a meta</p>
           )}
+        </div>
+
+        {/* Seletor de mês */}
+        <div className="card p-3 mb-5 flex items-center justify-between">
+          <button
+            onClick={() => navMes('prev')}
+            disabled={mesesDisponiveis.indexOf(mesSelecionado) >= mesesDisponiveis.length - 1}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+          >
+            <ChevronLeft size={16} className="text-gray-500" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <Calendar size={15} className="text-lidar-500" />
+            {mesesDisponiveis.length > 0 ? (
+              <select
+                className="text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer capitalize"
+                value={mesSelecionado}
+                onChange={e => setMesSelecionado(e.target.value)}
+              >
+                {mesesDisponiveis.map(m => (
+                  <option key={m} value={m}>{mesLabel(m)}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm font-medium text-gray-500 capitalize">{mesLabel(mesSelecionado)}</span>
+            )}
+          </div>
+
+          <button
+            onClick={() => navMes('next')}
+            disabled={mesesDisponiveis.indexOf(mesSelecionado) <= 0}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+          >
+            <ChevronRight size={16} className="text-gray-500" />
+          </button>
         </div>
 
         {/* Busca */}
@@ -163,14 +236,17 @@ export default function LigacoesPage() {
           <div className="flex justify-center py-16">
             <div className="w-6 h-6 border-2 border-lidar-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : clientes.length === 0 ? (
+          <div className="card p-12 text-center">
+            <Phone size={40} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-gray-400 text-sm font-medium">Nenhum cliente importado para este mês.</p>
+            <p className="text-xs text-gray-400 mt-1">Importe uma planilha para começar.</p>
+          </div>
         ) : (
           <>
-            {/* Pendentes */}
             {pendentes.length > 0 && (
               <div className="mb-6">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  Pendentes ({pendentes.length})
-                </p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pendentes ({pendentes.length})</p>
                 <div className="space-y-2">
                   {pendentes.map(cliente => (
                     <ClienteCard
@@ -188,12 +264,9 @@ export default function LigacoesPage() {
               </div>
             )}
 
-            {/* Concluídos */}
             {concluidos.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  Atendidos ({concluidos.length})
-                </p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Atendidos ({concluidos.length})</p>
                 <div className="space-y-2">
                   {concluidos.map(cliente => (
                     <div key={cliente.id} className="card px-4 py-3 flex items-center gap-3 opacity-60">
@@ -206,13 +279,6 @@ export default function LigacoesPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {clientes.length === 0 && (
-              <div className="card p-12 text-center">
-                <Phone size={40} className="mx-auto text-gray-200 mb-3" />
-                <p className="text-gray-400 text-sm">Nenhum cliente importado para esta loja.</p>
               </div>
             )}
           </>
@@ -229,10 +295,7 @@ function StarRating({ label, value, onChange }: { label: string; value: number; 
       <div className="flex justify-center gap-1">
         {[1, 2, 3, 4, 5].map(n => (
           <button key={n} onClick={() => onChange(n)} className="focus:outline-none transition-transform hover:scale-110">
-            <Star
-              size={22}
-              className={n <= value ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}
-            />
+            <Star size={22} className={n <= value ? 'text-amber-400 fill-amber-400' : 'text-gray-200'} />
           </button>
         ))}
       </div>
@@ -244,55 +307,31 @@ function StarRating({ label, value, onChange }: { label: string; value: number; 
 }
 
 function ClienteCard({ cliente, aberto, onToggle, avaliacao, onChange, onSalvar, salvando }: {
-  cliente: Cliente
-  aberto: boolean
-  onToggle: () => void
-  avaliacao: Avaliacao
-  onChange: (field: keyof Avaliacao, value: string | number) => void
-  onSalvar: () => void
-  salvando: boolean
+  cliente: Cliente; aberto: boolean; onToggle: () => void
+  avaliacao: Avaliacao; onChange: (f: keyof Avaliacao, v: string | number) => void
+  onSalvar: () => void; salvando: boolean
 }) {
-  const jaLigado = cliente.status === 'atendido'
-
   return (
     <div className={`card overflow-hidden transition-shadow ${aberto ? 'shadow-md ring-1 ring-lidar-100' : ''}`}>
-      {/* Linha principal — clicável */}
       <button onClick={onToggle} className="w-full px-4 py-4 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left">
-        {/* Avatar */}
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${jaLigado ? 'bg-green-50' : 'bg-lidar-50'}`}>
-          <User size={16} className={jaLigado ? 'text-green-500' : 'text-lidar-600'} />
+        <div className="w-9 h-9 rounded-full bg-lidar-50 flex items-center justify-center flex-shrink-0">
+          <User size={16} className="text-lidar-600" />
         </div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 text-sm truncate">{cliente.nome}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs text-gray-400">{cliente.telefone}</span>
-            {cliente.pintor && (
-              <>
-                <span className="text-gray-200">·</span>
-                <span className="text-xs text-lidar-600 font-medium">🖌 {cliente.pintor}</span>
-              </>
-            )}
+            {cliente.pintor && <><span className="text-gray-200">·</span><span className="text-xs text-lidar-600 font-medium">🖌 {cliente.pintor}</span></>}
           </div>
         </div>
-
-        {/* Check status */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {jaLigado ? (
-            <span className="badge-meta"><CheckCircle size={11} /> Ligado</span>
-          ) : (
-            <span className="badge-pendente">Pendente</span>
-          )}
+          <span className="badge-pendente">Pendente</span>
           {aberto ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
         </div>
       </button>
 
-      {/* Formulário expandido */}
       {aberto && (
         <div className="border-t border-gray-100 px-4 py-5 space-y-5 bg-gray-50/50">
-
-          {/* Info extra */}
           {(cliente.vendedor || cliente.cpf) && (
             <div className="flex gap-4 text-xs text-gray-500">
               {cliente.vendedor && <span>👤 Vendedor: <strong>{cliente.vendedor}</strong></span>}
@@ -300,7 +339,6 @@ function ClienteCard({ cliente, aberto, onToggle, avaliacao, onChange, onSalvar,
             </div>
           )}
 
-          {/* Status da ligação */}
           <div>
             <p className="text-xs font-semibold text-gray-600 mb-2">Status da ligação *</p>
             <div className="flex flex-wrap gap-2">
@@ -311,72 +349,36 @@ function ClienteCard({ cliente, aberto, onToggle, avaliacao, onChange, onSalvar,
                 { value: 'caixa_postal', label: '📬 Caixa postal' },
                 { value: 'retorno', label: '🔄 Retorno' },
               ].map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => onChange('status_ligacao', opt.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    avaliacao.status_ligacao === opt.value
-                      ? 'bg-lidar-600 text-white border-lidar-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-lidar-300'
-                  }`}
-                >
+                <button key={opt.value} onClick={() => onChange('status_ligacao', opt.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${avaliacao.status_ligacao === opt.value ? 'bg-lidar-600 text-white border-lidar-600' : 'bg-white text-gray-600 border-gray-200 hover:border-lidar-300'}`}>
                   {opt.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Estrelas — só se atendida */}
           {avaliacao.status_ligacao === 'atendida' && (
             <>
               <div>
                 <p className="text-xs font-semibold text-gray-600 mb-3">Avaliação</p>
                 <div className="flex gap-2 bg-white rounded-xl border border-gray-100 p-4">
-                  <StarRating
-                    label="Atendimento"
-                    value={avaliacao.nota_atendimento}
-                    onChange={v => onChange('nota_atendimento', v)}
-                  />
+                  <StarRating label="Atendimento" value={avaliacao.nota_atendimento} onChange={v => onChange('nota_atendimento', v)} />
                   <div className="w-px bg-gray-100" />
-                  <StarRating
-                    label="Produto"
-                    value={avaliacao.nota_produto}
-                    onChange={v => onChange('nota_produto', v)}
-                  />
+                  <StarRating label="Produto" value={avaliacao.nota_produto} onChange={v => onChange('nota_produto', v)} />
                   <div className="w-px bg-gray-100" />
-                  <StarRating
-                    label="Entrega"
-                    value={avaliacao.nota_entrega}
-                    onChange={v => onChange('nota_entrega', v)}
-                  />
+                  <StarRating label="Entrega" value={avaliacao.nota_entrega} onChange={v => onChange('nota_entrega', v)} />
                 </div>
               </div>
-
-              {/* Observações */}
               <div>
                 <p className="text-xs font-semibold text-gray-600 mb-1">Observações</p>
-                <textarea
-                  className="input text-xs resize-none"
-                  rows={2}
-                  placeholder="Alguma observação sobre o atendimento..."
-                  value={avaliacao.observacoes}
-                  onChange={e => onChange('observacoes', e.target.value)}
-                />
+                <textarea className="input text-xs resize-none" rows={2} placeholder="Alguma observação..."
+                  value={avaliacao.observacoes} onChange={e => onChange('observacoes', e.target.value)} />
               </div>
             </>
           )}
 
-          {/* Botão registrar */}
-          <button
-            onClick={onSalvar}
-            disabled={!avaliacao.status_ligacao || salvando}
-            className="btn-primary w-full flex items-center justify-center gap-2"
-          >
-            {salvando ? (
-              <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</>
-            ) : (
-              <><Phone size={14} /> Registrar ligação</>
-            )}
+          <button onClick={onSalvar} disabled={!avaliacao.status_ligacao || salvando} className="btn-primary w-full flex items-center justify-center gap-2">
+            {salvando ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</> : <><Phone size={14} /> Registrar ligação</>}
           </button>
         </div>
       )}
