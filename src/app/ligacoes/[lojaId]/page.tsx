@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import { createClient } from '@/lib/supabase'
-import { Phone, CheckCircle, ChevronDown, ChevronUp, Star, User, Search, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import { format, addMonths, subMonths, parseISO } from 'date-fns'
+import { Phone, CheckCircle, ChevronDown, ChevronUp, Star, User, Search, ChevronLeft, ChevronRight, Calendar, Trash2, AlertTriangle } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type Cliente = {
@@ -45,20 +45,20 @@ export default function LigacoesPage() {
   const [busca, setBusca] = useState('')
   const [mesesDisponiveis, setMesesDisponiveis] = useState<string[]>([])
   const [mesSelecionado, setMesSelecionado] = useState(format(new Date(), 'yyyy-MM'))
+  const [confirmandoApagar, setConfirmandoApagar] = useState(false)
+  const [apagando, setApagando] = useState(false)
+  const [msgSucesso, setMsgSucesso] = useState('')
 
   useEffect(() => {
     async function loadLoja() {
       const supabase = createClient()
       const { data } = await supabase.from('lojas').select('nome, cidade').eq('id', lojaId).single()
       setLoja(data)
-
-      // Busca todos os meses com clientes desta loja
       const { data: meses } = await supabase
         .from('clientes')
         .select('mes_referencia')
         .eq('loja_id', lojaId)
-      
-      const mesesUnicos = [...new Set((meses || []).map(m => m.mes_referencia))].sort().reverse()
+      const mesesUnicos = [...new Set((meses || []).map((m: any) => m.mes_referencia))].sort().reverse()
       setMesesDisponiveis(mesesUnicos)
       if (mesesUnicos.length > 0 && !mesesUnicos.includes(mesSelecionado)) {
         setMesSelecionado(mesesUnicos[0])
@@ -81,8 +81,39 @@ export default function LigacoesPage() {
       .eq('mes_referencia', mesSelecionado)
       .order('nome')
     setClientes(data || [])
-    setTotalAtendidos((data || []).filter(c => c.status === 'atendido').length)
+    setTotalAtendidos((data || []).filter((c: any) => c.status === 'atendido').length)
     setLoading(false)
+  }
+
+  async function apagarMes() {
+    setApagando(true)
+    const supabase = createClient()
+    const { data: clientesDoMes } = await supabase
+      .from('clientes')
+      .select('id')
+      .eq('loja_id', lojaId)
+      .eq('mes_referencia', mesSelecionado)
+
+    if (clientesDoMes && clientesDoMes.length > 0) {
+      const ids = clientesDoMes.map((c: any) => c.id)
+      await supabase.from('atendimentos').delete().in('cliente_id', ids)
+      await supabase.from('clientes').delete().in('id', ids)
+    }
+
+    // Atualizar lista de meses
+    const { data: meses } = await supabase
+      .from('clientes')
+      .select('mes_referencia')
+      .eq('loja_id', lojaId)
+    const mesesUnicos = [...new Set((meses || []).map((m: any) => m.mes_referencia))].sort().reverse()
+    setMesesDisponiveis(mesesUnicos)
+    setMesSelecionado(mesesUnicos[0] || format(new Date(), 'yyyy-MM'))
+    setClientes([])
+    setTotalAtendidos(0)
+    setConfirmandoApagar(false)
+    setApagando(false)
+    setMsgSucesso(`Clientes de ${mesLabel(mesSelecionado)} apagados!`)
+    setTimeout(() => setMsgSucesso(''), 3000)
   }
 
   function updateAvaliacao(clienteId: string, field: keyof Avaliacao, value: string | number) {
@@ -127,6 +158,16 @@ export default function LigacoesPage() {
     setSalvando(null)
   }
 
+  function mesLabel(mes: string) {
+    try { return format(parseISO(mes + '-01'), 'MMMM yyyy', { locale: ptBR }) } catch { return mes }
+  }
+
+  function navMes(direcao: 'prev' | 'next') {
+    const idx = mesesDisponiveis.indexOf(mesSelecionado)
+    if (direcao === 'next' && idx > 0) setMesSelecionado(mesesDisponiveis[idx - 1])
+    if (direcao === 'prev' && idx < mesesDisponiveis.length - 1) setMesSelecionado(mesesDisponiveis[idx + 1])
+  }
+
   const clientesFiltrados = clientes.filter(c =>
     c.nome.toLowerCase().includes(busca.toLowerCase()) ||
     (c.pintor || '').toLowerCase().includes(busca.toLowerCase()) ||
@@ -137,22 +178,9 @@ export default function LigacoesPage() {
   const concluidos = clientesFiltrados.filter(c => c.status === 'atendido')
   const metaAtingida = totalAtendidos >= 5
 
-  function mesLabel(mes: string) {
-    try {
-      return format(parseISO(mes + '-01'), 'MMMM yyyy', { locale: ptBR })
-    } catch { return mes }
-  }
-
-  function navMes(direcao: 'prev' | 'next') {
-    const idx = mesesDisponiveis.indexOf(mesSelecionado)
-    if (direcao === 'next' && idx > 0) setMesSelecionado(mesesDisponiveis[idx - 1])
-    if (direcao === 'prev' && idx < mesesDisponiveis.length - 1) setMesSelecionado(mesesDisponiveis[idx + 1])
-  }
-
   return (
     <AppLayout>
       <div className="p-8 max-w-2xl">
-        {/* Header */}
         <div className="mb-6">
           <p className="text-xs text-gray-400 mb-1">Lojas / {loja?.nome}</p>
           <div className="flex items-center justify-between">
@@ -173,7 +201,6 @@ export default function LigacoesPage() {
             )}
           </div>
 
-          {/* Barra progresso */}
           <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${metaAtingida ? 'bg-green-500' : 'bg-lidar-500'}`}
@@ -185,7 +212,7 @@ export default function LigacoesPage() {
           )}
         </div>
 
-        {/* Seletor de mês */}
+        {/* Seletor de mês + botão apagar */}
         <div className="card p-3 mb-5 flex items-center justify-between">
           <button
             onClick={() => navMes('prev')}
@@ -201,7 +228,7 @@ export default function LigacoesPage() {
               <select
                 className="text-sm font-medium text-gray-700 bg-transparent border-none outline-none cursor-pointer capitalize"
                 value={mesSelecionado}
-                onChange={e => setMesSelecionado(e.target.value)}
+                onChange={e => { setMesSelecionado(e.target.value); setConfirmandoApagar(false) }}
               >
                 {mesesDisponiveis.map(m => (
                   <option key={m} value={m}>{mesLabel(m)}</option>
@@ -212,14 +239,64 @@ export default function LigacoesPage() {
             )}
           </div>
 
-          <button
-            onClick={() => navMes('next')}
-            disabled={mesesDisponiveis.indexOf(mesSelecionado) <= 0}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
-          >
-            <ChevronRight size={16} className="text-gray-500" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navMes('next')}
+              disabled={mesesDisponiveis.indexOf(mesSelecionado) <= 0}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={16} className="text-gray-500" />
+            </button>
+
+            {/* Botão apagar mês */}
+            {clientes.length > 0 && (
+              <button
+                onClick={() => setConfirmandoApagar(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                title="Apagar clientes deste mês"
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Confirmação de apagar */}
+        {confirmandoApagar && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-700">Apagar todos os clientes de {mesLabel(mesSelecionado)}?</p>
+                <p className="text-xs text-red-500 mt-1">
+                  Isso vai apagar os {clientes.length} clientes e todos os atendimentos registrados neste mês. Não pode ser desfeito.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={apagarMes}
+                    disabled={apagando}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {apagando ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Apagando...</> : <><Trash2 size={12} /> Confirmar</>}
+                  </button>
+                  <button
+                    onClick={() => setConfirmandoApagar(false)}
+                    className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sucesso */}
+        {msgSucesso && (
+          <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-100 text-green-700 rounded-xl px-4 py-3 text-sm">
+            <CheckCircle size={16} /> {msgSucesso}
+          </div>
+        )}
 
         {/* Busca */}
         <div className="relative mb-5">
@@ -240,7 +317,6 @@ export default function LigacoesPage() {
           <div className="card p-12 text-center">
             <Phone size={40} className="mx-auto text-gray-200 mb-3" />
             <p className="text-gray-400 text-sm font-medium">Nenhum cliente importado para este mês.</p>
-            <p className="text-xs text-gray-400 mt-1">Importe uma planilha para começar.</p>
           </div>
         ) : (
           <>
