@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import AppLayout from '@/components/layout/AppLayout'
 import { createClient } from '@/lib/supabase'
@@ -297,26 +298,28 @@ function LojaRow({ loja, cor }: { loja: ResumoLoja; cor: string }) {
   const atendidos = loja.total_atendidos || 0
   const pct = Math.min((atendidos / 5) * 100, 100)
   return (
-    <div className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
-      <div className="flex-shrink-0 w-20">
-        {loja.meta_atingida
-          ? <span className="badge-meta">✅ Meta</span>
-          : atendidos >= 3
-            ? <span className="badge-pendente">⚡ Quase</span>
-            : <span className="badge-pendente">⏳ Início</span>
-        }
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm font-medium text-gray-800 truncate">{loja.loja_nome}</span>
-          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{atendidos}/5</span>
+    <Link href={`/loja/${loja.loja_id}`}>
+      <div className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors cursor-pointer group">
+        <div className="flex-shrink-0 w-20">
+          {loja.meta_atingida
+            ? <span className="badge-meta">✅ Meta</span>
+            : atendidos >= 3
+              ? <span className="badge-pendente">⚡ Quase</span>
+              : <span className="badge-pendente">⏳ Início</span>
+          }
         </div>
-        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: loja.meta_atingida ? '#22c55e' : cor }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-medium text-gray-800 truncate group-hover:text-lidar-600 transition-colors">{loja.loja_nome}</span>
+            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{atendidos}/5</span>
+          </div>
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: loja.meta_atingida ? '#22c55e' : cor }} />
+          </div>
         </div>
+        {loja.media_satisfacao ? <span className="text-xs font-semibold text-gray-600 flex-shrink-0">⭐ {Number(loja.media_satisfacao).toFixed(1)}</span> : null}
+        {!loja.meta_atingida && atendidos < 3 && <AlertTriangle size={14} className="text-amber-400 flex-shrink-0" />}
       </div>
-      {loja.media_satisfacao ? <span className="text-xs font-semibold text-gray-600 flex-shrink-0">⭐ {Number(loja.media_satisfacao).toFixed(1)}</span> : null}
-      {!loja.meta_atingida && atendidos < 3 && <AlertTriangle size={14} className="text-amber-400 flex-shrink-0" />}
-    </div>
+    </Link>
   )
 }
