@@ -110,7 +110,7 @@ export default function LigacoesPage() {
 
   const pendentes = clientesFiltrados.filter(c => c.status === 'pendente' || c.status === 'retorno')
   const concluidos = clientesFiltrados.filter(c => c.status === 'atendido')
-  const metaAtingida = totalAtendidos >= 10
+  const metaAtingida = totalAtendidos >= 5
 
   return (
     <AppLayout>
@@ -130,7 +130,7 @@ export default function LigacoesPage() {
               </div>
             ) : (
               <div className="text-right">
-                <p className="text-3xl font-bold text-gray-900">{totalAtendidos}<span className="text-lg font-normal text-gray-400">/10</span></p>
+                <p className="text-3xl font-bold text-gray-900">{totalAtendidos}<span className="text-lg font-normal text-gray-400">/5</span></p>
                 <p className="text-xs text-gray-400">atendidos</p>
               </div>
             )}
@@ -140,11 +140,11 @@ export default function LigacoesPage() {
           <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${metaAtingida ? 'bg-green-500' : 'bg-lidar-500'}`}
-              style={{ width: `${Math.min((totalAtendidos / 10) * 100, 100)}%` }}
+              style={{ width: `${Math.min((totalAtendidos / 5) * 100, 100)}%` }}
             />
           </div>
           {!metaAtingida && (
-            <p className="text-xs text-gray-400 mt-1">Faltam {10 - totalAtendidos} atendimento{10 - totalAtendidos !== 1 ? 's' : ''} para a meta</p>
+            <p className="text-xs text-gray-400 mt-1">Faltam {5 - totalAtendidos} atendimento{5 - totalAtendidos !== 1 ? 's' : ''} para a meta</p>
           )}
         </div>
 
