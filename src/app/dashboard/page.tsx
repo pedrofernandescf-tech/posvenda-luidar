@@ -297,7 +297,7 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 
 function LojaRow({ loja }: { loja: ResumoLoja }) {
   const atendidos = loja.total_atendidos || 0
-  const pct = Math.min((atendidos / 10) * 100, 100)
+  const pct = Math.min((atendidos / 5) * 100, 100)
   return (
     <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors">
       <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: loja.grupo === 'Luidar Tintas' ? '#16a34a' : '#0ea5e9' }} />
@@ -307,7 +307,7 @@ function LojaRow({ loja }: { loja: ResumoLoja }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <span className="text-sm font-medium text-gray-800 truncate">{loja.loja_nome}</span>
-          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{atendidos}/10</span>
+          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{atendidos}/5</span>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: loja.meta_atingida ? '#22c55e' : loja.grupo === 'Luidar Tintas' ? '#16a34a' : '#0ea5e9' }} />
