@@ -105,7 +105,7 @@ export default function LojasPage() {
                               <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden w-full max-w-xs">
                                 <div
                                   className={`h-full rounded-full transition-all ${loja.meta_atingida ? 'bg-green-500' : 'bg-lidar-500'}`}
-                                  style={{ width: `${Math.min((loja.total_atendidos / 10) * 100, 100)}%` }}
+                                  style={{ width: `${Math.min((loja.total_atendidos / 5) * 100, 100)}%` }}
                                 />
                               </div>
                             )}
@@ -114,7 +114,7 @@ export default function LojasPage() {
                             {loja.total_clientes > 0 ? (
                               <>
                                 <p className="text-xl font-bold text-gray-900">
-                                  {loja.total_atendidos}<span className="text-sm font-normal text-gray-400">/10</span>
+                                  {loja.total_atendidos}<span className="text-sm font-normal text-gray-400">/5</span>
                                 </p>
                                 <p className="text-xs text-gray-400">atendidos</p>
                               </>
